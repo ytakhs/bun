@@ -387,6 +387,38 @@ describe("fetch", () => {
       }).toThrow("fetch() request with GET/HEAD/OPTIONS method cannot have body.");
     }),
   );
+
+  describe("with FormData", () => {
+    it("sends a request with multipart/form-data", async () => {
+      startServer({
+        async fetch(req) {
+          const formData = await req.formData();
+          const body = formData.get("foo");
+          const contentType = req.headers.get("content-type");
+          return Response.json({ body, contentType });
+        },
+      });
+
+      const urls = [
+        `http://${server.hostname}:${server.port}`,
+        new URL(`http://${server.hostname}:${server.port}`),
+        new Request(`http://${server.hostname}:${server.port}`),
+      ];
+
+      const formData = new FormData();
+      formData.append("foo", "bar");
+
+      for (const url of urls) {
+        const response = await fetch(url, { method: "POST", body: formData });
+        expect(response.status).toBe(200);
+        const body = await response.json<{ body: string; contentType: string }>();
+        expect(body["body"]).toBe("bar");
+        const [typeValue, directive] = body["contentType"].split(";");
+        expect(typeValue).toBe("multipart/form-data");
+        expect(directive.trim()).toContain("boundary=");
+      }
+    });
+  });
 });
 
 it("simultaneous HTTPS fetch", async () => {
